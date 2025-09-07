@@ -51,23 +51,31 @@ const httpsAgent = new https.Agent({
 
 // Encrypt endpoint (login + encrypt)
 app.post('/api/encrypt', async (req, res) => {
+    console.log('=== ENCRYPT ENDPOINT CALLED ===');
     const { password, otp } = req.body;
     
+    console.log('Request parameters:', { password: password ? '***' : 'missing', otp: otp ? '***' : 'missing' });
+    
     if (!password || !otp) {
+        console.log('ERROR: Missing required parameters');
         return res.status(400).json({ 
             error: 'Password and OTP code are required' 
         });
     }
     
     const { url, account } = config.synology;
+    console.log('Using config:', { url, account });
     
     try {
         console.log('Starting combined encrypt operation...');
         
         // Step 1: Login to get SID
+        console.log('Step 1: Attempting login...');
         const loginResult = await makeLoginRequest(url, account, password, otp);
+        console.log('Login result:', { success: loginResult.success, hasSid: !!loginResult.sid });
         
         if (!loginResult.success) {
+            console.log('Login failed:', loginResult);
             return res.json({
                 success: false,
                 error: 'Login failed: ' + (loginResult.data?.error || 'Unknown error'),
@@ -83,7 +91,9 @@ app.post('/api/encrypt', async (req, res) => {
         }
         
         // Step 2: Encrypt using the SID
+        console.log('Step 2: Attempting encrypt with SID:', loginResult.sid);
         const encryptResult = await makeEncryptRequest(url, 'FileVault', loginResult.sid);
+        console.log('Encrypt result:', { success: encryptResult.success, data: encryptResult.data });
         
         res.json({
             success: encryptResult.success,
@@ -109,6 +119,7 @@ app.post('/api/encrypt', async (req, res) => {
         
     } catch (error) {
         console.error('Combined encrypt error:', error);
+        console.error('Error stack:', error.stack);
         res.status(500).json({
             success: false,
             error: error.message
@@ -119,9 +130,17 @@ app.post('/api/encrypt', async (req, res) => {
 
 // Decrypt endpoint (login + decrypt)
 app.post('/api/decrypt', async (req, res) => {
+    console.log('=== DECRYPT ENDPOINT CALLED ===');
     const { otp, password, filevaultPassword } = req.body;
     
+    console.log('Request parameters:', { 
+        password: password ? '***' : 'missing', 
+        filevaultPassword: filevaultPassword ? '***' : 'missing', 
+        otp: otp ? '***' : 'missing' 
+    });
+    
     if (!otp || !password || !filevaultPassword) {
+        console.log('ERROR: Missing required parameters');
         return res.status(400).json({ 
             error: 'OTP code, password, and FileVault password are required' 
         });
@@ -129,14 +148,18 @@ app.post('/api/decrypt', async (req, res) => {
     
     // Use config from backend + passwords from frontend
     const { url, account } = config.synology;
+    console.log('Using config:', { url, account });
     
     try {
         console.log('Starting Synology API calls...');
         
         // Step 1: Login
+        console.log('Step 1: Attempting login...');
         const loginResult = await makeLoginRequest(url, account, password, otp);
+        console.log('Login result:', { success: loginResult.success, hasSid: !!loginResult.sid });
         
         if (!loginResult.success) {
+            console.log('Login failed:', loginResult);
             return res.json({
                 success: false,
                 steps: [
@@ -156,7 +179,9 @@ app.post('/api/decrypt', async (req, res) => {
         console.log('Login successful, SID:', sid);
         
         // Step 2: Decrypt FileVault
+        console.log('Step 2: Attempting decrypt with SID:', sid);
         const decryptResult = await makeDecryptRequest(url, filevaultPassword, sid);
+        console.log('Decrypt result:', { success: decryptResult.success, data: decryptResult.data });
         
         res.json({
             success: loginResult.success && decryptResult.success,
@@ -183,6 +208,7 @@ app.post('/api/decrypt', async (req, res) => {
         
     } catch (error) {
         console.error('Combined API error:', error);
+        console.error('Error stack:', error.stack);
         res.status(500).json({
             success: false,
             error: error.message
@@ -332,6 +358,11 @@ async function makeLoginRequest(url, account, password, otp) {
 
 // Helper function for decrypt request
 async function makeDecryptRequest(url, filevaultPassword, sid) {
+    console.log('=== makeDecryptRequest called ===');
+    console.log('URL:', url);
+    console.log('FileVault Password:', filevaultPassword ? '***' : 'missing');
+    console.log('SID:', sid ? '***' : 'missing');
+    
     const decryptUrl = `${url}/webapi/entry.cgi`;
     const formData = new URLSearchParams({
         'api': 'SYNO.Core.Share.Crypto',
@@ -342,13 +373,23 @@ async function makeDecryptRequest(url, filevaultPassword, sid) {
         '_sid': sid
     });
     
+    console.log('Decrypt URL:', decryptUrl);
+    console.log('Form data:', formData.toString());
+    
     const result = await makeHttpsPostRequest(decryptUrl, formData.toString());
+    console.log('Decrypt response:', { success: result.success, status: result.status, hasData: !!result.data });
+    
     result.url = decryptUrl;
     return result;
 }
 
 // Helper function for encrypt request
 async function makeEncryptRequest(url, name, sid) {
+    console.log('=== makeEncryptRequest called ===');
+    console.log('URL:', url);
+    console.log('Name:', name);
+    console.log('SID:', sid ? '***' : 'missing');
+    
     const encryptUrl = `${url}/webapi/entry.cgi`;
     const formData = new URLSearchParams({
         'api': 'SYNO.Core.Share.Crypto',
@@ -358,7 +399,12 @@ async function makeEncryptRequest(url, name, sid) {
         '_sid': sid
     });
     
+    console.log('Encrypt URL:', encryptUrl);
+    console.log('Form data:', formData.toString());
+    
     const result = await makeHttpsPostRequest(encryptUrl, formData.toString());
+    console.log('Encrypt response:', { success: result.success, status: result.status, hasData: !!result.data });
+    
     result.url = encryptUrl;
     return result;
 }
