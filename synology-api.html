@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synology API Caller</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .success {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+        }
+        .loading {
+            color: #6c757d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-group">
+            <label for="password">Synology Password:</label>
+            <input type="password" id="password" placeholder="Enter your Synology password">
+        </div>
+        
+        <div class="form-group">
+            <label for="filevaultPassword">FileVault Password:</label>
+            <input type="password" id="filevaultPassword" placeholder="Enter FileVault password">
+        </div>
+        
+        <div class="form-group">
+            <label for="otp">OTP Code:</label>
+            <input type="text" id="otp" placeholder="Enter current OTP code">
+        </div>
+        
+        <div class="form-group">
+            <button type="button" onclick="unlockFileVault()" id="unlockButton">🔓 Unlock</button>
+            <button type="button" onclick="lockFileVault()" id="lockButton">🔒 Lock</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+
+        async function unlockFileVault() {
+            const unlockButton = document.getElementById('unlockButton');
+            const lockButton = document.getElementById('lockButton');
+            const resultsDiv = document.getElementById('results');
+            
+            
+            // Get values from form
+            const password = document.getElementById('password').value;
+            const filevaultPassword = document.getElementById('filevaultPassword').value;
+            const otp = document.getElementById('otp').value.trim();
+            
+            // Validate inputs
+            if (!password || !filevaultPassword || !otp) {
+                showError('Please fill in all fields: password, FileVault password, and OTP code.');
+                return;
+            }
+            
+            unlockButton.disabled = true;
+            lockButton.disabled = true;
+            unlockButton.textContent = '⏳ Unlocking...';
+            resultsDiv.innerHTML = '<div class="loading">Unlocking FileVault...</div>';
+
+            try {
+                // Call backend API for unlock (login + decrypt)
+                const response = await fetch('/api/synology-calls', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        password: password,
+                        filevaultPassword: filevaultPassword,
+                        otp: otp
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess('FileVault unlocked successfully!');
+                } else {
+                    const errorMsg = result.error || 'Operation failed';
+                    showError(errorMsg);
+                }
+                
+            } catch (error) {
+                console.error('Frontend error:', error);
+                showError('Error calling backend: ' + error.message);
+            } finally {
+                unlockButton.disabled = false;
+                lockButton.disabled = false;
+                unlockButton.textContent = '🔓 Unlock';
+            }
+        }
+
+        async function lockFileVault() {
+            const unlockButton = document.getElementById('unlockButton');
+            const lockButton = document.getElementById('lockButton');
+            const resultsDiv = document.getElementById('results');
+            
+            
+            // Get values from form
+            const password = document.getElementById('password').value;
+            const otp = document.getElementById('otp').value.trim();
+            
+            // Validate inputs
+            if (!password || !otp) {
+                showError('Please fill in password and OTP code.');
+                return;
+            }
+            
+            unlockButton.disabled = true;
+            lockButton.disabled = true;
+            lockButton.textContent = '⏳ Locking...';
+            resultsDiv.innerHTML = '<div class="loading">Locking FileVault...</div>';
+
+            try {
+                // First login to get SID
+                const loginResponse = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        password: password,
+                        otp: otp
+                    })
+                });
+                
+                const loginResult = await loginResponse.json();
+                
+                if (!loginResult.success) {
+                    showError('Login failed: ' + (loginResult.error || 'Unknown error'));
+                    return;
+                }
+                
+                // Now encrypt using the SID
+                const encryptResponse = await fetch('/api/encrypt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: 'FileVault',
+                        sid: loginResult.sid
+                    })
+                });
+                
+                const encryptResult = await encryptResponse.json();
+                
+                if (encryptResult.success) {
+                    showSuccess('FileVault locked successfully!');
+                } else {
+                    showError('Encrypt failed: ' + (encryptResult.error || 'Unknown error'));
+                }
+                
+            } catch (error) {
+                console.error('Frontend error:', error);
+                showError('Error calling backend: ' + error.message);
+            } finally {
+                unlockButton.disabled = false;
+                lockButton.disabled = false;
+                lockButton.textContent = '🔒 Lock';
+            }
+        }
+
+
+
+        function showSuccess(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML += `<div class="results success"><h3>🎉 Success!</h3><p>${message}</p></div>`;
+        }
+
+        function showError(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="results error"><h3>❌ Error</h3><p>${message}</p></div>`;
+        }
+
+    </script>
+</body>
+</html>
