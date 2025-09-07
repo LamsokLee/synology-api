@@ -19,6 +19,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
 
+// Serve the HTML file
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'synology-api.html'));
+});
+
 // Create HTTPS agent that ignores SSL certificate errors (like curl -k)
 const httpsAgent = new https.Agent({
     rejectUnauthorized: false
