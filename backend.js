@@ -19,6 +19,25 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
 
+// Request logging middleware
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    if (req.body && Object.keys(req.body).length > 0) {
+        console.log('Request body:', JSON.stringify(req.body, null, 2));
+    }
+    next();
+});
+
+// Response logging middleware
+app.use((req, res, next) => {
+    const originalSend = res.send;
+    res.send = function(data) {
+        console.log(`[${new Date().toISOString()}] Response ${res.statusCode}:`, JSON.stringify(JSON.parse(data || '{}'), null, 2));
+        originalSend.call(this, data);
+    };
+    next();
+});
+
 // Serve the HTML file
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'synology-api.html'));
@@ -173,8 +192,12 @@ app.post('/api/decrypt', async (req, res) => {
 
 // Helper function to make HTTPS GET requests
 function makeHttpsRequest(url) {
+    console.log('=== makeHttpsRequest called ===');
+    console.log('Requesting URL:', url);
+    
     return new Promise((resolve, reject) => {
         const request = https.get(url, { agent: httpsAgent }, (response) => {
+            console.log('HTTPS Response received:', { statusCode: response.statusCode, headers: response.headers });
             let data = '';
             
             response.on('data', (chunk) => {
@@ -182,14 +205,17 @@ function makeHttpsRequest(url) {
             });
             
             response.on('end', () => {
+                console.log('Raw response data:', data);
                 try {
                     const jsonData = JSON.parse(data);
+                    console.log('Parsed JSON data:', jsonData);
                     resolve({
                         success: response.statusCode === 200 && jsonData.success,
                         data: jsonData,
                         status: response.statusCode
                     });
                 } catch (error) {
+                    console.log('JSON parse error:', error.message);
                     resolve({
                         success: false,
                         data: { error: 'Invalid JSON response', raw: data },
@@ -200,10 +226,12 @@ function makeHttpsRequest(url) {
         });
         
         request.on('error', (error) => {
+            console.log('HTTPS request error:', error);
             reject(error);
         });
         
         request.setTimeout(10000, () => {
+            console.log('Request timeout after 10 seconds');
             request.destroy();
             reject(new Error('Request timeout'));
         });
@@ -267,6 +295,12 @@ function makeHttpsPostRequest(url, data) {
 
 // Helper function for login request
 async function makeLoginRequest(url, account, password, otp) {
+    console.log('=== makeLoginRequest called ===');
+    console.log('URL:', url);
+    console.log('Account:', account);
+    console.log('Password:', password ? '***' : 'missing');
+    console.log('OTP:', otp ? '***' : 'missing');
+    
     const loginUrl = `${url}/webapi/auth.cgi`;
     const params = new URLSearchParams({
         'api': 'SYNO.API.Auth',
@@ -280,10 +314,16 @@ async function makeLoginRequest(url, account, password, otp) {
     });
     
     const fullUrl = `${loginUrl}?${params.toString()}`;
+    console.log('Full login URL:', fullUrl);
+    
     const result = await makeHttpsRequest(fullUrl);
+    console.log('Login response:', { success: result.success, status: result.status, hasData: !!result.data });
     
     if (result.success) {
         result.sid = result.data.data?.sid;
+        console.log('Extracted SID:', result.sid ? '***' : 'none');
+    } else {
+        console.log('Login failed:', result.data);
     }
     
     result.url = fullUrl;
