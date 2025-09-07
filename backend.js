@@ -38,6 +38,17 @@ app.use((req, res, next) => {
     next();
 });
 
+// Get configuration endpoint
+app.get('/api/config', (req, res) => {
+    console.log('=== /api/config endpoint called ===');
+    res.json({
+        url: config.synology.url,
+        account: config.synology.account,
+        // Passwords are provided by frontend
+        requiresPasswords: true
+    });
+});
+
 // Serve the HTML file
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'synology-api.html'));
