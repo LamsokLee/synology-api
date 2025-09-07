@@ -29,105 +29,7 @@ const httpsAgent = new https.Agent({
     rejectUnauthorized: false
 });
 
-// Login endpoint
-app.post('/api/login', async (req, res) => {
-    const { password, otp } = req.body;
-    
-    if (!password || !otp) {
-        return res.status(400).json({ error: 'Missing required parameters: password and otp' });
-    }
-    
-    // Use hardcoded config
-    const { url, account } = config.synology;
-    
-    try {
-        const loginUrl = `${url}/webapi/auth.cgi`;
-        const params = new URLSearchParams({
-            'api': 'SYNO.API.Auth',
-            'version': '6',
-            'method': 'login',
-            'account': account,
-            'passwd': password,
-            'otp_code': otp,
-            'session': 'FileStation',
-            'format': 'sid'
-        });
-        
-        const fullUrl = `${loginUrl}?${params.toString()}`;
-        console.log('Making login request to:', fullUrl);
-        
-        const response = await makeHttpsRequest(fullUrl);
-        
-        if (response.success) {
-            const sid = response.data.data?.sid;
-            if (!sid) {
-                return res.status(400).json({ 
-                    error: 'No SID received from login response',
-                    response: response.data 
-                });
-            }
-            
-            res.json({
-                success: true,
-                data: response.data,
-                sid: sid,
-                url: fullUrl
-            });
-        } else {
-            res.status(400).json({
-                success: false,
-                error: 'Login failed',
-                data: response.data,
-                url: fullUrl
-            });
-        }
-        
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
 
-// Decrypt FileVault endpoint
-app.post('/api/decrypt', async (req, res) => {
-    const { url, filevaultPassword, sid } = req.body;
-    
-    if (!url || !filevaultPassword || !sid) {
-        return res.status(400).json({ error: 'Missing required parameters' });
-    }
-    
-    try {
-        const decryptUrl = `${url}/webapi/entry.cgi`;
-        const formData = new URLSearchParams({
-            'api': 'SYNO.Core.Share.Crypto',
-            'version': '1',
-            'method': 'decrypt',
-            'name': 'FileVault',
-            'password': filevaultPassword,
-            '_sid': sid
-        });
-        
-        console.log('Making decrypt request to:', decryptUrl);
-        
-        const response = await makeHttpsPostRequest(decryptUrl, formData.toString());
-        
-        res.json({
-            success: response.success,
-            data: response.data,
-            url: decryptUrl
-        });
-        
-    } catch (error) {
-        console.error('Decrypt error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
 
 // Get configuration endpoint
 app.get('/api/config', (req, res) => {
@@ -139,8 +41,8 @@ app.get('/api/config', (req, res) => {
     });
 });
 
-// Combined encrypt endpoint (login + encrypt)
-app.post('/api/synology-encrypt', async (req, res) => {
+// Encrypt endpoint (login + encrypt)
+app.post('/api/encrypt', async (req, res) => {
     const { password, otp } = req.body;
     
     if (!password || !otp) {
@@ -206,41 +108,9 @@ app.post('/api/synology-encrypt', async (req, res) => {
     }
 });
 
-// Individual encrypt endpoint (for backward compatibility)
-app.post('/api/encrypt', async (req, res) => {
-    const { name, sid } = req.body;
-    
-    if (!name || !sid) {
-        return res.status(400).json({ 
-            error: 'Name and SID are required' 
-        });
-    }
-    
-    const { url } = config.synology;
-    
-    try {
-        console.log('Starting encrypt operation...');
-        
-        const encryptResult = await makeEncryptRequest(url, name, sid);
-        
-        res.json({
-            success: encryptResult.success,
-            data: encryptResult.success ? { message: 'Encrypt successful' } : encryptResult.data,
-            url: encryptResult.url,
-            error: encryptResult.success ? null : (encryptResult.data.error || 'Encrypt failed')
-        });
-        
-    } catch (error) {
-        console.error('Encrypt error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
 
-// Combined endpoint that does both login and decrypt
-app.post('/api/synology-calls', async (req, res) => {
+// Decrypt endpoint (login + decrypt)
+app.post('/api/decrypt', async (req, res) => {
     const { otp, password, filevaultPassword } = req.body;
     
     if (!otp || !password || !filevaultPassword) {
