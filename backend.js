@@ -30,17 +30,6 @@ const httpsAgent = new https.Agent({
 });
 
 
-
-// Get configuration endpoint
-app.get('/api/config', (req, res) => {
-    res.json({
-        url: config.synology.url,
-        account: config.synology.account,
-        // Passwords are provided by frontend
-        requiresPasswords: true
-    });
-});
-
 // Encrypt endpoint (login + encrypt)
 app.post('/api/encrypt', async (req, res) => {
     const { password, otp } = req.body;
@@ -342,5 +331,4 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Synology API Backend running on port ${PORT}`);
     console.log(`Access the app at: http://localhost:${PORT}`);
-    console.log('This backend handles SSL certificate issues (like curl -k)');
 });
