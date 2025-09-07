@@ -175,8 +175,8 @@
             resultsDiv.innerHTML = '<div class="loading">Locking FileVault...</div>';
 
             try {
-                // First login to get SID
-                const loginResponse = await fetch('/api/login', {
+                // Call combined encrypt endpoint (login + encrypt)
+                const response = await fetch('/api/synology-encrypt', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -187,31 +187,13 @@
                     })
                 });
                 
-                const loginResult = await loginResponse.json();
+                const result = await response.json();
                 
-                if (!loginResult.success) {
-                    showError('Login failed: ' + (loginResult.error || 'Unknown error'));
-                    return;
-                }
-                
-                // Now encrypt using the SID
-                const encryptResponse = await fetch('/api/encrypt', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        name: 'FileVault',
-                        sid: loginResult.sid
-                    })
-                });
-                
-                const encryptResult = await encryptResponse.json();
-                
-                if (encryptResult.success) {
+                if (result.success) {
                     showSuccess('FileVault locked successfully!');
                 } else {
-                    showError('Encrypt failed: ' + (encryptResult.error || 'Unknown error'));
+                    const errorMsg = result.error || 'Operation failed';
+                    showError(errorMsg);
                 }
                 
             } catch (error) {

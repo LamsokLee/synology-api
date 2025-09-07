@@ -139,7 +139,74 @@ app.get('/api/config', (req, res) => {
     });
 });
 
-// Encrypt endpoint
+// Combined encrypt endpoint (login + encrypt)
+app.post('/api/synology-encrypt', async (req, res) => {
+    const { password, otp } = req.body;
+    
+    if (!password || !otp) {
+        return res.status(400).json({ 
+            error: 'Password and OTP code are required' 
+        });
+    }
+    
+    const { url, account } = config.synology;
+    
+    try {
+        console.log('Starting combined encrypt operation...');
+        
+        // Step 1: Login to get SID
+        const loginResult = await makeLoginRequest(url, account, password, otp);
+        
+        if (!loginResult.success) {
+            return res.json({
+                success: false,
+                error: 'Login failed: ' + (loginResult.data?.error || 'Unknown error'),
+                steps: [{
+                    step: 1,
+                    name: 'Login',
+                    success: false,
+                    data: loginResult.data,
+                    url: loginResult.url,
+                    error: loginResult.data?.error || 'Login failed'
+                }]
+            });
+        }
+        
+        // Step 2: Encrypt using the SID
+        const encryptResult = await makeEncryptRequest(url, 'FileVault', loginResult.sid);
+        
+        res.json({
+            success: encryptResult.success,
+            data: encryptResult.success ? { message: 'FileVault encrypted successfully' } : encryptResult.data,
+            steps: [
+                {
+                    step: 1,
+                    name: 'Login',
+                    success: true,
+                    data: { message: 'Login successful' },
+                    url: loginResult.url
+                },
+                {
+                    step: 2,
+                    name: 'Encrypt FileVault',
+                    success: encryptResult.success,
+                    data: encryptResult.success ? { message: 'FileVault encrypted successfully' } : encryptResult.data,
+                    url: encryptResult.url,
+                    error: encryptResult.success ? null : (encryptResult.data?.error || 'Encrypt failed')
+                }
+            ]
+        });
+        
+    } catch (error) {
+        console.error('Combined encrypt error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Individual encrypt endpoint (for backward compatibility)
 app.post('/api/encrypt', async (req, res) => {
     const { name, sid } = req.body;
     
