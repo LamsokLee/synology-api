@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 // Configuration - hardcoded for simplicity
 const config = {
     synology: {
-        url: "https://192.168.1.2:5001",
+        url: "https://linshuoli.myds.me:5001",
         account: "linshuoli"
     }
 };
