@@ -1,5 +1,5 @@
 {
-  "name": "synology-api-backend",
+  "name": "synology-api",
   "version": "1.0.0",
   "description": "Backend for Synology API calls",
   "main": "backend.js",
