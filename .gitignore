@@ -28,6 +28,7 @@ coverage/
 .Trashes
 ehthumbs.db
 Thumbs.db
+@eaDir/
 
 # IDE files
 .vscode/
